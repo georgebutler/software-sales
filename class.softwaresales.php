@@ -1,19 +1,22 @@
 <?php
 
 class SoftwareSales {
-    private static $initiated = false;
+    private static bool $initiated = false;
 
-    public static function init() {
+    public static function init(): void
+    {
         if ( ! self::$initiated ) {
             self::init_hooks();
         }
     }
 
-    public static function init_hooks() {
+    public static function init_hooks(): void
+    {
         self::$initiated = true;
     }
 
-    public static function plugin_activation() {
+    public static function plugin_activation(): void
+    {
         add_option( 'Activated_SoftwareSales', true );
     }
 
