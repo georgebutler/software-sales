@@ -1,49 +1,11 @@
 <?php
 
-if( ! class_exists( 'WP_List_Table' ) ) {
-    require_once( ABSPATH . 'wp-admin/includes/class-wp-list-table.php' );
-}
+use JetBrains\PhpStorm\NoReturn;
 
-class SoftwareSales_SerialKey_Table extends WP_List_Table {
-    // Define columns for the table
-    public function get_columns(): array
-    {
-        return [
-            'id' => __('ID', 'textdomain'),
-            'key_text' => __('Serial Key', 'textdomain'),
-            'platform' => __('Platform', 'textdomain'),
-            'user_order_item_id' => __('Order Item ID', 'textdomain')
-        ];
-    }
+include(plugin_dir_path(__FILE__) . 'tables/class.serialkey-table.php');
 
-    // Prepare table items
-    public function prepare_items(): void
-    {
-        $columns = $this->get_columns();
-        $hidden = []; // You can specify hidden columns if needed
-        $sortable = $this->get_sortable_columns(); // Implement this method if you want sortable columns
-        $this->_column_headers = [$columns, $hidden, $sortable];
-
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'serial_keys';
-        $serial_keys = $wpdb->get_results("SELECT * FROM $table_name", ARRAY_A);
-
-        $this->items = $serial_keys;
-    }
-
-    // Default column rendering
-    public function column_default($item, $column_name) {
-        switch ($column_name) {
-            case 'id':
-            case 'key_text':
-            case 'platform':
-            case 'user_order_item_id':
-                return $item[$column_name];
-            default:
-                return print_r($item, true); //Show the whole array for troubleshooting purposes
-        }
-    }
-}
+include( plugin_dir_path( __FILE__ ) . 'views/admin/serialkey-index.php');
+include( plugin_dir_path( __FILE__ ) . 'views/admin/serialkey-new.php');
 
 class SoftwareSales_Admin {
     private static bool $initiated = false;
@@ -61,6 +23,8 @@ class SoftwareSales_Admin {
 
         add_action( 'admin_init', array( 'SoftwareSales_Admin', 'admin_init' ) );
         add_action('admin_menu', array( 'SoftwareSales_Admin', 'admin_menu' ) );
+
+        add_action('admin_post_add_serial_key', array( 'SoftwareSales_Admin', 'handle_add_serial_key' ));
     }
 
     public static function admin_init(): void
@@ -108,41 +72,41 @@ class SoftwareSales_Admin {
             'Add New Serial Key',
             'manage_options',
             'software-sales-serial-keys-new',
-            'software_sales_serial_keys_create'
+            'software_sales_serial_keys_new'
         );
+    }
 
-        function software_sales_serial_keys_index(): void
-        {
-            $listTable = new SoftwareSales_SerialKey_Table();
-            $listTable->prepare_items();
-            ?>
-            <div class="wrap">
-                <h1 class="wp-heading-inline">
-                    <?php echo esc_html( get_admin_page_title() ); ?>
-                </h1>
-
-                <?php
-                printf(
-                    '<a href="%1$s" class="page-title-action">%2$s</a>',
-                    esc_url( admin_url( 'admin.php?page=software-sales-serial-keys-new' ) ),
-                    esc_html__( 'Add New Serial Key' )
-                );
-
-                $listTable->display();
-                ?>
-            </div>
-            <?php
+    #[NoReturn] public static function handle_add_serial_key(): void
+    {
+        // Verify nonce here if you decide to use one for security
+        if (!isset($_POST['add_serial_key_nonce']) || !wp_verify_nonce($_POST['add_serial_key_nonce'], 'add_serial_key_action')) {
+            // Nonce verification failed, handle the error accordingly.
+            wp_die('Security check failed.');
         }
 
-        function software_sales_serial_keys_create(): void
-        {
-            ?>
-            <div class="wrap">
-                <h1 class="wp-heading-inline">
-                    <?php echo esc_html( get_admin_page_title() ); ?>
-                </h1>
-            </div>
-            <?php
-        }
+        // Sanitize and validate input data
+        $key_text = sanitize_text_field($_POST['key_text']);
+        $platform = sanitize_text_field($_POST['platform']);
+        $user_order_item_id = sanitize_text_field($_POST['user_order_item_id']);
+
+        // Convert user_order_item_id to NULL if it is 0 or less
+        $user_order_item_id = intval($user_order_item_id) <= 0 ? NULL : $user_order_item_id;
+
+        // Insert into database (Assuming global $wpdb is used and your table structure)
+        global $wpdb;
+        $table_name = $wpdb->prefix . 'serial_keys';
+        $data = [
+            'key_text' => $key_text,
+            'platform' => $platform,
+            'user_order_item_id' => $user_order_item_id,
+        ];
+        // Update the format array to handle NULL for user_order_item_id
+        $format = ['%s', '%s', $user_order_item_id === NULL ? NULL : '%d']; // Use '%d' for integers, NULL for actual NULL values
+
+        $wpdb->insert($table_name, $data, $format);
+
+        $redirect_url = admin_url('admin.php?page=software-sales-serial-keys');
+        wp_redirect($redirect_url);
+        exit;
     }
 }
